@@ -286,10 +286,19 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
     return new Date(year, month, day).getDay() === 0;
   }
 
+  function isSlotWithin36hrs(dateStr, slotStr) {
+    const [h, m] = slotStr.split(":").map(Number);
+    const slotTime = new Date(dateStr);
+    slotTime.setHours(h, m, 0, 0);
+    const cutoff = new Date();
+    cutoff.setTime(cutoff.getTime() + 36 * 60 * 60 * 1000);
+    return slotTime < cutoff;
+  }
+
   function hasOpenSlot(day){
     if(isSunday(year, month, day)) return false;
     const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-    return TIME_SLOTS.some(s=>!isFull(ds,s));
+    return TIME_SLOTS.some(s=>!isFull(ds,s) && !isSlotWithin36hrs(ds,s));
   }
 
   function isSlotBlocked(slot, date) {
@@ -463,11 +472,12 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
               const b=getBooked(date,s); const q=getQuota(date,s); const full=b>=q;
               const is3hr = svc && THREE_HOUR_IDS.includes(svc.id);
               const blocked = isSlotBlocked(s, date);
+              const tooSoon = isSlotWithin36hrs(date, s);
               // For 3hr service, disable last slot index if not enough slots after
               const notEnoughSlots = is3hr && idx > TIME_SLOTS.length - 3;
               const no3hrSpace = is3hr && !isSlotAvailableFor3hr(s, date);
-              const disabled = full || blocked || notEnoughSlots || no3hrSpace;
-              const reason = full?"已滿":blocked?"已佔用":notEnoughSlots?"時間不足":no3hrSpace?"後續已滿":"";
+              const disabled = full || blocked || tooSoon || notEnoughSlots || no3hrSpace;
+              const reason = full?"已滿":tooSoon?"未開放":blocked?"已佔用":notEnoughSlots?"時間不足":no3hrSpace?"後續已滿":"";
               return (
                 <button key={s} className={`slot ${slot===s?"ss":""}`} disabled={disabled} onClick={()=>setSlot(s)}>
                   <div style={{fontWeight:600}}>{s}</div>
